@@ -11,12 +11,17 @@ struct NeuralNet {
 
 impl NeuralNet {
     fn new(layer_sizes: &[usize]) -> NeuralNet {
+        // iterating over the layer array input by window of 2 we create new layers
         let layers = layer_sizes.windows(2)
             .map(|w| Layer::new(w[0],w[1]))
             .collect();
         NeuralNet { layers }
     }
     fn forward(&self, input: &[f64]) -> Vec<f64> {
+        // as each forward pass returns a vector of values, that vector in turn is used to propagate forward
+        // this propagation forward vector is then used to multiple against the weights called forth
+        // it is important to remember that the layers are defined as the vectors of weights and biases NOT the node values
+        
         self.layers.iter().fold(input.to_vec(), |acc, layer| layer.forward(&acc))
     }
 
@@ -48,6 +53,9 @@ impl Layer {
 
     fn forward(&self, input: &[f64]) -> Vec<f64> {
         self.weights.iter().enumerate().map(|(i, neuron_weights)| {
+
+            // iterating over each neuron, multiply the weight & the input value and add the bias
+            // then apply the sigmoid function to flatten TODO: can make this a parameterized call based on sigmoid or ReLu later
             let sum: f64 = neuron_weights.iter().zip(input.iter())
                 .map(|(w,i)| w * i)
                 .sum();
@@ -55,10 +63,18 @@ impl Layer {
         }).collect()    
     }
 
+    fn backward(&self, ) -> () {
+         // read in current inputs
+        
+        
+    }
+
+
     fn ndarray_forward(&self, input: &[f64]) -> Vec<f64> {
         let output_size = self.weights.len();
         let input_size = self.weights[0].len();   
 
+        // flatten the weights from array into a vector
         let flattened_vec = self.weights.iter()
             .flat_map(|n| n.iter().copied())
             .collect();
@@ -78,17 +94,15 @@ impl Layer {
 
         // Perform matrix-vector multiplication and add biases
         let z = weights_array.dot(&input_array);
-        let z_with_bias = &z + &biases_array;
+
+        let z_with_bias = z + biases_array;
 
         // Apply activation (sigmoid here) element-wise and collect to Vec<f64>
         z_with_bias.mapv(|x| sigmoid(x));
         z_with_bias.to_vec()
     }
 
-    fn backward(&self, ) -> {
-        
-    }
-
+    
 }
 
 fn mean_squared_error(predicted_val: &[f64], actual_val: &[f64]) -> f64 {
@@ -115,16 +129,21 @@ fn layer_test() {
 }
 
 fn nn_test() {
-    let nn = NeuralNet::new(&[1000, 24, 24,18, 24, 5]);
+    let nn = NeuralNet::new(&[3, 2, 2,5]);
     let input = vec![0.5;1000];
     
-    let start_time = Instant::now();
-    let forward_result = nn.nd_forward(&input);
-    let forward_duration = start_time.elapsed();
-    // println!("{:?}",nn);
-    println!("Time taken for forward(): {:?}", forward_duration);
+    for x in nn.layers {
+        println!("{:?} \n",x)
+        
+    }
+
+    // let start_time = Instant::now();
+    // let forward_result = nn.nd_forward(&input);
+    // let forward_duration = start_time.elapsed();
+    // // println!("{:?}",nn);
+    // println!("Time taken for forward(): {:?}", forward_duration);
 
 }
 fn main() {
-
+    nn_test();
 }
