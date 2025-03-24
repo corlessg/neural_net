@@ -17,12 +17,39 @@ impl NeuralNet {
             .collect();
         NeuralNet { layers }
     }
-    fn forward(&self, input: &[f64]) -> Vec<f64> {
+
+    fn forward(&self, input: &[f64]) -> Vec<Vec<f64>> {
         // as each forward pass returns a vector of values, that vector in turn is used to propagate forward
         // this propagation forward vector is then used to multiple against the weights called forth
         // it is important to remember that the layers are defined as the vectors of weights and biases NOT the node values
+        let mut activations = Vec::new();
+        let current = input.to_vec();
+        activations.push(current);
+
+        self.layers.iter().fold(input.to_vec(), |acc, layer| {
+            let activation = layer.forward(&acc);
+            activations.push(activation.clone());
+            activation
+            
+        });
+
+        activations
+    }
+
+    fn cycle(&self, input: &[f64], target: &[f64], learning_rate: f64) -> () {
         
-        self.layers.iter().fold(input.to_vec(), |acc, layer| layer.forward(&acc))
+        // get activations from forward pass
+        let activations = self.forward(input);
+        let output = activations.last().expect("Last vector was empty");
+
+        // compute the deltas from final activation
+        let error = output.iter().zip(target.to_vec()).map(|(a, y)| a - y);
+
+        self.layers.iter().rev().zip(activations).map(|(layer, activation)| {
+            // calculate gradient
+            let z = 
+            let gradient
+        })
     }
 
     fn nd_forward(&self, input: &[f64]) -> Vec<f64> {
@@ -64,8 +91,7 @@ impl Layer {
     }
 
     fn backward(&self, ) -> () {
-         // read in current inputs
-        
+        // 
         
     }
 
@@ -145,5 +171,5 @@ fn nn_test() {
 
 }
 fn main() {
-    nn_test();
+
 }
