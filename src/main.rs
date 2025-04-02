@@ -39,7 +39,7 @@ impl NeuralNet {
     fn cycle(&self, input: &[f64], target: &[f64], learning_rate: f64) -> () {
         
         // get activations from forward pass
-        let activations = self.forward(input);
+        let activations = self.nd_forward(input);
         let output = activations.last().expect("Last vector was empty");
 
         // compute the deltas from final activation
@@ -52,9 +52,19 @@ impl NeuralNet {
         })
     }
 
-    fn nd_forward(&self, input: &[f64]) -> Vec<f64> {
-        self.layers.iter().fold(input.to_vec(), |acc, layer| layer.ndarray_forward(&acc))
+    fn nd_forward(&self, input: &[f64]) -> Vec<Array1<f64>> {
+        let mut activations:Vec<Array1<f64>> = Vec::new();
+        activations.push(Array1::from_vec(input.to_vec()));
 
+        self.layers.iter().fold(input.to_vec(), |acc, layer| {
+            let accv = acc.to_vec();
+            let activation = layer.ndarray_forward(&accv);
+            activations.push(activation.clone());
+            activation.to_vec()
+        });
+
+        activations
+        
     }
 }
 
@@ -90,13 +100,7 @@ impl Layer {
         }).collect()    
     }
 
-    fn backward(&self, ) -> () {
-        // 
-        
-    }
-
-
-    fn ndarray_forward(&self, input: &[f64]) -> Vec<f64> {
+    fn ndarray_forward(&self, input: &[f64]) -> Array1<f64> {
         let output_size = self.weights.len();
         let input_size = self.weights[0].len();   
 
@@ -124,8 +128,8 @@ impl Layer {
         let z_with_bias = z + biases_array;
 
         // Apply activation (sigmoid here) element-wise and collect to Vec<f64>
-        z_with_bias.mapv(|x| sigmoid(x));
-        z_with_bias.to_vec()
+        z_with_bias.mapv(|x| sigmoid(x))
+        // z_with_bias.to_vec()
     }
 
     
