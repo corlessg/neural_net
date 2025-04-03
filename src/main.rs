@@ -1,7 +1,7 @@
 use rand::Rng;
-use neural_net::utils::{self, sigmoid};
+use neural_net::utils::{self, sigmoid, sigmoid_derivative};
 use ndarray::{Array1, Array2, ArrayView1};
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 
 #[derive(Debug)]
@@ -12,8 +12,8 @@ struct NeuralNet {
 impl NeuralNet {
     fn new(layer_sizes: &[usize]) -> NeuralNet {
         // iterating over the layer array input by window of 2 we create new layers
-        let layers = layer_sizes.windows(2)
-            .map(|w| Layer::new(w[0],w[1]))
+        let layers: Vec<Layer> = layer_sizes.windows(2)
+            .map(|w: &[usize]| Layer::new(w[0],w[1]))
             .collect();
         NeuralNet { layers }
     }
@@ -40,33 +40,55 @@ impl NeuralNet {
         
         // get activations from forward pass
         let activations = self.nd_forward(input);
+
+        // retrive last layer activation values to determine error
         let output = activations.last().expect("Last vector was empty");
 
         // compute the deltas from final activation
-        let error = output.iter().zip(target.to_vec()).map(|(a, y)| a - y);
+        let error = output.iter().zip(target.to_vec()).map(|(a, y)| a - y).collect();
 
-        self.layers.iter().rev().zip(activations).map(|(layer, activation)| {
-            // calculate gradient
-            let z = 
-            let gradient
-        })
+        // pre-allocate array of deltas
+        let mut deltas: Vec<Array1<f64>> = self.layers.iter()
+            .map(|layer| Array1::zeros(layer.weights.len()))
+            .collect();
+
+        // calculate delta for last layer
+        deltas.last_mut().expect("Last vector was empty")
+            .assign(
+                error * activations.last().expect("last vector was empty").mapv(sigmoid_derivative)
+            );
+
+        self.layers.iter().rev().skip(1)
+            .zip(self.layers.iter().rev())
+            .enumerate()
+            .for_each(|(l, (current_layer,next_layer))| {
+                deltas[l].assign( {
+                    let layer_weights = Array2::from_vec(next_layer.weights);
+                    layer_weights.t().dot(&deltas[l+1]) * &activations[l+1].mapv(sigmoid_derivative)
+                })
+            }
+            
+        )
     }
 
     fn nd_forward(&self, input: &[f64]) -> Vec<Array1<f64>> {
         let mut activations:Vec<Array1<f64>> = Vec::new();
         activations.push(Array1::from_vec(input.to_vec()));
 
-        self.layers.iter().fold(input.to_vec(), |acc, layer| {
-            let accv = acc.to_vec();
+        self.layers.iter().fold(input.to_vec(), |acc: Vec<f64>, layer| {
+            let accv: Vec<f64> = acc.to_vec();
             let activation = layer.ndarray_forward(&accv);
             activations.push(activation.clone());
             activation.to_vec()
         });
 
         activations
-        
     }
 }
+
+
+// TODO GPC - need to convert everything into ndArray format, starting with the struct of Layer... which will break everything
+
 
 #[derive(Debug)]
 struct Layer {
