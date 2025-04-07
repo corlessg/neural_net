@@ -45,7 +45,7 @@ impl NeuralNet {
         let output = activations.last().expect("Last vector was empty");
 
         // compute the deltas from final activation
-        let error = output.iter().zip(target.to_vec()).map(|(a, y)| a - y).collect();
+        let error: Array1<f64> = output.iter().zip(target.to_vec()).map(|(a, y)| a - y).collect();
 
         // pre-allocate array of deltas
         let mut deltas: Vec<Array1<f64>> = self.layers.iter()
@@ -55,16 +55,17 @@ impl NeuralNet {
         // calculate delta for last layer
         deltas.last_mut().expect("Last vector was empty")
             .assign(
-                error * activations.last().expect("last vector was empty").mapv(sigmoid_derivative)
+                &(error * activations.last().expect("last vector was empty").mapv(sigmoid_derivative))
             );
 
         self.layers.iter().rev().skip(1)
             .zip(self.layers.iter().rev())
             .enumerate()
-            .for_each(|(l, (current_layer,next_layer))| {
+            .for_each(|(l, (_current_layer,next_layer))| {
+                // TODO leverage split_at_mut on deltas to obtain two separate slices
+
                 deltas[l].assign( {
-                    let layer_weights = Array2::from_vec(next_layer.weights);
-                    layer_weights.t().dot(&deltas[l+1]) * &activations[l+1].mapv(sigmoid_derivative)
+                    &(next_layer.weights.t().dot(&deltas[l+1]) * &activations[l+1].mapv(sigmoid_derivative))
                 })
             }
             
@@ -77,7 +78,7 @@ impl NeuralNet {
 
         self.layers.iter().fold(input.to_vec(), |acc: Vec<f64>, layer| {
             let accv: Vec<f64> = acc.to_vec();
-            let activation = layer.ndarray_forward(&accv);
+            let activation = layer.forward(&accv);
             activations.push(activation.clone());
             activation.to_vec()
         });
@@ -86,14 +87,10 @@ impl NeuralNet {
     }
 }
 
-
-// TODO GPC - need to convert everything into ndArray format, starting with the struct of Layer... which will break everything
-
-
 #[derive(Debug)]
 struct Layer {
-    weights: Vec<Vec<f64>>,
-    biases: Vec<f64>
+    weights: Array2<f64>,
+    biases: Array1<f64>
 }
 
 impl Layer {
@@ -101,53 +98,39 @@ impl Layer {
         let mut rng = rand::thread_rng();
 
         //Initialize the weights and biases randomly
-        let weights = (0..output_size)
-            .map(|_| (0..input_size).map(|_| rng.gen_range(-1.0..1.0)).collect()).collect();
+        let weights: Array2<f64> = Array2::from_shape_simple_fn((input_size,output_size), || {rng.gen_range(-1.0..1.0)});
 
-        let biases = (0..output_size)
+        let biases: Array1<f64> = (0..output_size)
             .map(|_| rng.gen_range(-1.0..1.0)).collect();
 
         Layer { weights, biases}
     }
-
-    fn forward(&self, input: &[f64]) -> Vec<f64> {
-        self.weights.iter().enumerate().map(|(i, neuron_weights)| {
-
-            // iterating over each neuron, multiply the weight & the input value and add the bias
-            // then apply the sigmoid function to flatten TODO: can make this a parameterized call based on sigmoid or ReLu later
-            let sum: f64 = neuron_weights.iter().zip(input.iter())
-                .map(|(w,i)| w * i)
-                .sum();
-            sigmoid(sum + self.biases[i])
-        }).collect()    
-    }
-
-    fn ndarray_forward(&self, input: &[f64]) -> Array1<f64> {
-        let output_size = self.weights.len();
-        let input_size = self.weights[0].len();   
-
-        // flatten the weights from array into a vector
-        let flattened_vec = self.weights.iter()
-            .flat_map(|n| n.iter().copied())
-            .collect();
+    
+    // fn forward_manual(&self, input: &[f64]) -> Vec<f64> {
         
-        // Create ndarray arrays
-        let weights_array = Array2::from_shape_vec((output_size, input_size), flattened_vec)
-            .expect("Failed to create weights array");
+    //     self.weights.iter().enumerate().map(|(i, neuron_weights)| {
+
+    //         // iterating over each neuron, multiply the weight & the input value and add the bias
+    //         // then apply the sigmoid function to flatten TODO: can make this a parameterized call based on sigmoid or ReLu later
+    //         let sum: f64 = neuron_weights.iter().zip(input.iter())
+    //             .map(|(w,i)| w * i)
+    //             .sum();
+    //         sigmoid(sum + self.biases[i])
+    //     }).collect()    
+    // }
+
+    fn forward(&self, input: &[f64]) -> Array1<f64> {
 
         // Interestingly... this can be done without copying using ArrayView1 feature from ndarray, which could be faster
-        let biases_array = ArrayView1::from(&self.biases);
         let input_array = ArrayView1::from(input);
 
         // Or done with copying, which increases memory OH
-        // let biases_array = Array1::from(self.biases.to_vec());
         // let input_array = Array1::from(input.to_vec());
 
-
         // Perform matrix-vector multiplication and add biases
-        let z = weights_array.dot(&input_array);
+        let z = self.weights.dot(&input_array);
 
-        let z_with_bias = z + biases_array;
+        let z_with_bias = z + &self.biases;
 
         // Apply activation (sigmoid here) element-wise and collect to Vec<f64>
         z_with_bias.mapv(|x| sigmoid(x))
