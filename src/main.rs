@@ -28,8 +28,9 @@ impl NeuralNet {
 
         self.layers.iter().fold(input.to_vec(), |acc, layer| {
             let activation = layer.forward(&acc);
-            activations.push(activation.clone());
-            activation
+
+            activations.push(activation.clone().to_vec());
+            activation.to_vec()
             
         });
 
@@ -52,24 +53,34 @@ impl NeuralNet {
             .map(|layer| Array1::zeros(layer.weights.len()))
             .collect();
 
+        
         // calculate delta for last layer
         deltas.last_mut().expect("Last vector was empty")
             .assign(
                 &(error * activations.last().expect("last vector was empty").mapv(sigmoid_derivative))
             );
+        
+        // TODO error here trying to assign 5 to 10 slot, why is it 10...
+        println!("{:?}",deltas);
+
 
         self.layers.iter().rev().skip(1)
             .zip(self.layers.iter().rev())
             .enumerate()
             .for_each(|(l, (_current_layer,next_layer))| {
                 // TODO leverage split_at_mut on deltas to obtain two separate slices
+                // what is done below is not a memory useful methodology
+                let delta2 = deltas.clone();
 
                 deltas[l].assign( {
-                    &(next_layer.weights.t().dot(&deltas[l+1]) * &activations[l+1].mapv(sigmoid_derivative))
+                    &(next_layer.weights.t().dot(&delta2[l+1]) * &activations[l+1].mapv(sigmoid_derivative))
                 })
             }
-            
-        )
+        );
+
+        for x in deltas {
+            println!("{:?}",x);
+        }
     }
 
     fn nd_forward(&self, input: &[f64]) -> Vec<Array1<f64>> {
@@ -79,9 +90,11 @@ impl NeuralNet {
         self.layers.iter().fold(input.to_vec(), |acc: Vec<f64>, layer| {
             let accv: Vec<f64> = acc.to_vec();
             let activation = layer.forward(&accv);
+
             activations.push(activation.clone());
             activation.to_vec()
         });
+
 
         activations
     }
@@ -128,8 +141,8 @@ impl Layer {
         // let input_array = Array1::from(input.to_vec());
 
         // Perform matrix-vector multiplication and add biases
-        let z = self.weights.dot(&input_array);
-
+        let z = self.weights.t().dot(&input_array);
+        
         let z_with_bias = z + &self.biases;
 
         // Apply activation (sigmoid here) element-wise and collect to Vec<f64>
@@ -156,21 +169,25 @@ fn layer_test() {
     let forward_duration = start_time.elapsed();
     println!("Time taken for forward(): {:?}", forward_duration);
 
-
-    let start_time = Instant::now();
-    let forward_result = layer.ndarray_forward(&input);
-    let forward_duration = start_time.elapsed();
-    println!("Time taken for ndforward(): {:?}", forward_duration);
+    // dont need this anymore now that we are going with ndarray
+    // let start_time = Instant::now();
+    // let forward_result = layer.ndarray_forward(&input);
+    // let forward_duration = start_time.elapsed();
+    // println!("Time taken for ndforward(): {:?}", forward_duration);
 }
 
 fn nn_test() {
     let nn = NeuralNet::new(&[3, 2, 2,5]);
-    let input = vec![0.5;1000];
+    let input = vec![0.5;3];
     
-    for x in nn.layers {
-        println!("{:?} \n",x)
+    let learning_rate = 0.1;
+    let target = [5.0,1.0,3.0,2.0,4.0];
+
+    nn.cycle(&input, &target, learning_rate);
+    // for x in nn.layers {
+    //     println!("{:?} \n",x)
         
-    }
+    // }
 
     // let start_time = Instant::now();
     // let forward_result = nn.nd_forward(&input);
@@ -180,5 +197,5 @@ fn nn_test() {
 
 }
 fn main() {
-
+    nn_test();
 }
