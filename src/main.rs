@@ -41,6 +41,8 @@ impl NeuralNet {
         
         // get activations from forward pass
         let activations = self.nd_forward(input);
+        
+        println!("{:?} \n\n",activations);
 
         // retrive last layer activation values to determine error
         let output = activations.last().expect("Last vector was empty");
@@ -50,9 +52,11 @@ impl NeuralNet {
 
         // pre-allocate array of deltas
         let mut deltas: Vec<Array1<f64>> = self.layers.iter()
-            .map(|layer| Array1::zeros(layer.weights.len()))
+            // confirm this is accurate... shape()[1] it mmight have to take on the full shape...
+            .map(|layer| Array1::zeros(layer.weights.shape()[1]))
             .collect();
 
+        
         
         // calculate delta for last layer
         deltas.last_mut().expect("Last vector was empty")
@@ -60,8 +64,6 @@ impl NeuralNet {
                 &(error * activations.last().expect("last vector was empty").mapv(sigmoid_derivative))
             );
         
-        // TODO error here trying to assign 5 to 10 slot, why is it 10...
-        println!("{:?}",deltas);
 
 
         self.layers.iter().rev().skip(1)
@@ -71,9 +73,12 @@ impl NeuralNet {
                 // TODO leverage split_at_mut on deltas to obtain two separate slices
                 // what is done below is not a memory useful methodology
                 let delta2 = deltas.clone();
-
+                println!("{:?}",deltas);
+                println!("\n\n");
+                
                 deltas[l].assign( {
-                    &(next_layer.weights.t().dot(&delta2[l+1]) * &activations[l+1].mapv(sigmoid_derivative))
+
+                    &(next_layer.weights.dot(&delta2[l+1]) * &activations[l+1].mapv(sigmoid_derivative))
                 })
             }
         );
