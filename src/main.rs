@@ -42,8 +42,6 @@ impl NeuralNet {
         // get activations from forward pass
         let activations = self.nd_forward(input);
         
-        println!("{:?} \n\n",activations);
-
         // retrive last layer activation values to determine error
         let output = activations.last().expect("Last vector was empty");
 
@@ -55,7 +53,7 @@ impl NeuralNet {
             // confirm this is accurate... shape()[1] it mmight have to take on the full shape...
             .map(|layer| Array1::zeros(layer.weights.shape()[1]))
             .collect();
-
+        
         
         
         // calculate delta for last layer
@@ -73,12 +71,18 @@ impl NeuralNet {
                 // TODO leverage split_at_mut on deltas to obtain two separate slices
                 // what is done below is not a memory useful methodology
                 let delta2 = deltas.clone();
-                println!("{:?}",deltas);
-                println!("\n\n");
                 
                 deltas[l].assign( {
+                    println!("l: {:?}",l);
+                    println!("weights: \n\n {:?} ", _current_layer.weights);
+                    println!("delta2: \n\n {:?} ", delta2);
+                    println!("activations: \n\n {:?} ", &activations[l]);
 
-                    &(next_layer.weights.dot(&delta2[l+1]) * &activations[l+1].mapv(sigmoid_derivative))
+                    
+                    let val = _current_layer.weights.dot(&delta2[l]) * &activations[l].mapv(sigmoid_derivative);
+                    println!("result: \n\n {:?} ", val);
+                    
+                    &(_current_layer.weights.dot(&delta2[l+1]) * &activations[l+1].mapv(sigmoid_derivative))
                 })
             }
         );
@@ -182,11 +186,11 @@ fn layer_test() {
 }
 
 fn nn_test() {
-    let nn = NeuralNet::new(&[3, 2, 2,5]);
-    let input = vec![0.5;3];
+    let nn = NeuralNet::new(&[2, 3, 4]);
+    let input = vec![0.5;2];
     
     let learning_rate = 0.1;
-    let target = [5.0,1.0,3.0,2.0,4.0];
+    let target = [5.0,1.0,3.0,2.0];
 
     nn.cycle(&input, &target, learning_rate);
     // for x in nn.layers {
